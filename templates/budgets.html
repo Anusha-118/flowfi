@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Budgets{% endblock %}
+{% block content %}
+<div class="ph">
+  <div class="ph-left"><h1 class="page-title">Budgets</h1><p class="page-sub">Set limits, track spending</p></div>
+  <div class="ctrl-row">
+    <input type="month" id="mp" class="fi"/>
+    <button class="btn btn-gold" onclick="openBudModal()">＋ Set Budget</button>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.3fr 1fr;gap:14px;align-items:start;">
+  <!-- Budget list -->
+  <div class="card">
+    <div class="section-hd"><span class="section-title">Monthly Budgets</span><span id="budSummary" style="font-size:12px;color:var(--text3);"></span></div>
+    <div id="budList"></div>
+  </div>
+
+  <!-- Tips -->
+  <div style="display:flex;flex-direction:column;gap:12px;">
+    <div class="card">
+      <div class="section-hd"><span class="section-title">Budget Health</span></div>
+      <div id="budHealth"></div>
+    </div>
+    <div class="card" style="background:var(--gold-d);border-color:var(--gold-b);">
+      <div style="font-size:13px;font-weight:600;color:var(--gold);margin-bottom:10px;">💡 Budget Tips</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;">
+        <p>• The <strong>50/30/20 rule</strong>: 50% needs, 30% wants, 20% savings.</p>
+        <br>
+        <p>• Set budgets for your top 3–5 expense categories first.</p>
+        <br>
+        <p>• Overspent? Adjust the budget or find where to cut next month.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Budget Modal -->
+<div class="overlay" id="budOverlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <h2 class="modal-title">Set Budget</h2>
+      <button class="x-btn" onclick="closeBudModal()">×</button>
+    </div>
+    <div class="fg">
+      <label class="fl">Category</label>
+      <select class="fin" id="bCat">
+        <option value="">Select category</option>
+        <option>Food</option><option>Transport</option><option>Shopping</option>
+        <option>Entertainment</option><option>Health</option><option>Education</option>
+        <option>Utilities</option><option>Rent</option><option>Other</option>
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Monthly Limit (₹)</label><input class="fin" type="number" id="bAmt" placeholder="e.g. 5000" min="1"/></div>
+    <div class="mf">
+      <button class="btn-cancel" onclick="closeBudModal()">Cancel</button>
+      <button class="btn-save" onclick="saveBud()">Set Budget</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('mp').value=curMonth();
+document.getElementById('mp').addEventListener('change',loadBuds);
+
+async function loadBuds(){
+  const m=document.getElementById('mp').value;
+  const r=await fetch('/api/budgets?month='+m), buds=await r.json();
+  renderBuds(buds);
+  renderHealth(buds);
+}
+
+function renderBuds(buds){
+  const el=document.getElementById('budList');
+  const total=buds.reduce((a,b)=>a+b.amount,0), totalSpent=buds.reduce((a,b)=>a+b.spent,0);
+  document.getElementById('budSummary').textContent=buds.length+' budgets · '+fmt(totalSpent)+' / '+fmt(total);
+  if(!buds.length){el.innerHTML='<div class="empty"><div class="empty-icon">◎</div><div class="empty-t">No budgets set</div><div class="empty-s">Click "+ Set Budget" to get started</div></div>';return;}
+  el.innerHTML=buds.map(b=>{
+    const pct=b.percent, cls=pct>=100?'over':pct>=80?'warn':'ok';
+    return `<div class="bud-item">
+      <div class="bud-header">
+        <span class="bud-cat">${ICONS[b.category]||'📦'} ${b.category}</span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="bud-amounts">${fmt(b.spent)} / ${fmt(b.amount)}</span>
+          <button class="ib del" onclick="delBud(${b.id})" title="Remove">✕</button>
+        </div>
+      </div>
+      <div class="bud-track"><div class="bud-fill ${cls}" style="width:${pct}%"></div></div>
+      <div class="bud-rem ${b.overspent?'over':''}">${b.overspent?'⚠ Over by '+fmt(b.spent-b.amount):'Remaining: '+fmt(b.remaining)} · ${pct}% used</div>
+    </div>`;
+  }).join('');
+}
+
+function renderHealth(buds){
+  const el=document.getElementById('budHealth');
+  if(!buds.length){el.innerHTML='<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px;">Set budgets to see your health score</div>';return;}
+  const ok=buds.filter(b=>b.percent<80).length, warn=buds.filter(b=>b.percent>=80&&b.percent<100).length, over=buds.filter(b=>b.overspent).length;
+  const score=Math.round((ok*1+warn*0.5+over*0)/buds.length*100);
+  const scoreColor=score>=80?'var(--teal)':score>=50?'var(--gold)':'var(--rose)';
+  el.innerHTML=`
+    <div style="text-align:center;padding:16px 0 20px;">
+      <div style="font-size:48px;font-weight:800;font-family:'JetBrains Mono',monospace;color:${scoreColor};letter-spacing:-2px;">${score}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:2px;">Budget Score</div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center;">
+      <div style="padding:10px;background:var(--teal-d);border-radius:var(--rs);">
+        <div style="font-size:20px;font-weight:700;color:var(--teal);">${ok}</div>
+        <div style="font-size:11px;color:var(--text3);">On track</div>
+      </div>
+      <div style="padding:10px;background:var(--gold-d);border-radius:var(--rs);">
+        <div style="font-size:20px;font-weight:700;color:var(--gold);">${warn}</div>
+        <div style="font-size:11px;color:var(--text3);">Warning</div>
+      </div>
+      <div style="padding:10px;background:var(--rose-d);border-radius:var(--rs);">
+        <div style="font-size:20px;font-weight:700;color:var(--rose);">${over}</div>
+        <div style="font-size:11px;color:var(--text3);">Over limit</div>
+      </div>
+    </div>`;
+}
+
+async function delBud(id){
+  const r=await fetch('/api/budgets/'+id,{method:'DELETE'});
+  if(r.ok){showToast('Budget removed');loadBuds();}
+}
+
+function openBudModal(){ document.getElementById('budOverlay').classList.add('open'); }
+function closeBudModal(){ document.getElementById('budOverlay').classList.remove('open'); document.getElementById('bCat').value=''; document.getElementById('bAmt').value=''; }
+
+async function saveBud(){
+  const cat=document.getElementById('bCat').value, amt=document.getElementById('bAmt').value, m=document.getElementById('mp').value;
+  if(!cat||!amt){showToast('Fill all fields','err');return;}
+  const r=await fetch('/api/budgets',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category:cat,amount:parseFloat(amt),month:m})});
+  if(r.ok){showToast('Budget saved! ✓');closeBudModal();loadBuds();}
+  else showToast('Save failed','err');
+}
+
+document.getElementById('budOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeBudModal();});
+loadBuds();
+</script>
+{% endblock %}

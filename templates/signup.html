@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Create Account{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-mark">💎</div>
+      <span class="auth-brand">Flow<span>Fi</span></span>
+    </div>
+    <h1 class="auth-h">Create account</h1>
+    <p class="auth-s">Start your financial journey today</p>
+    <div class="err" id="err"></div>
+    <div class="fg"><label class="fl">Full Name</label><input class="fin" type="text" id="nm" placeholder="John Doe"/></div>
+    <div class="fg"><label class="fl">Email</label><input class="fin" type="email" id="em" placeholder="you@example.com"/></div>
+    <div class="fg"><label class="fl">Password</label><input class="fin" type="password" id="pw" placeholder="Min. 6 characters"/></div>
+    <button class="btn btn-gold" style="width:100%;justify-content:center;padding:13px;font-size:15px;margin-top:6px;" id="sb" onclick="go()">Create Account →</button>
+    <p class="auth-foot">Already have one? <a href="/login">Sign in</a></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function go(){
+  const btn=document.getElementById('sb'), err=document.getElementById('err');
+  const nm=document.getElementById('nm').value.trim(), em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value;
+  err.style.display='none';
+  if(!nm||!em||!pw){err.textContent='All fields required';err.style.display='block';return;}
+  if(pw.length<6){err.textContent='Password must be at least 6 characters';err.style.display='block';return;}
+  btn.disabled=true; btn.textContent='Creating…';
+  try{
+    const r=await fetch('/api/auth/signup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:nm,email:em,password:pw})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error;err.style.display='block';}
+    else window.location.href='/';
+  }catch{err.textContent='Network error';err.style.display='block';}
+  btn.disabled=false; btn.textContent='Create Account →';
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+</script>
+{% endblock %}

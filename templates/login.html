@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+{% block content %}
+<div class="auth-page">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-mark">💎</div>
+      <span class="auth-brand">Flow<span>Fi</span></span>
+    </div>
+    <h1 class="auth-h">Welcome back</h1>
+    <p class="auth-s">Sign in to manage your finances</p>
+    <div class="err" id="err"></div>
+    <div class="fg"><label class="fl">Email</label><input class="fin" type="email" id="em" placeholder="you@example.com"/></div>
+    <div class="fg"><label class="fl">Password</label><input class="fin" type="password" id="pw" placeholder="••••••••"/></div>
+    <button class="btn btn-gold" style="width:100%;justify-content:center;padding:13px;font-size:15px;margin-top:6px;" id="lb" onclick="go()">Sign In →</button>
+    <p class="auth-foot">No account? <a href="/signup">Create one free</a></p>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+async function go(){
+  const btn=document.getElementById('lb'), err=document.getElementById('err');
+  const em=document.getElementById('em').value.trim(), pw=document.getElementById('pw').value;
+  err.style.display='none';
+  if(!em||!pw){err.textContent='Please fill all fields';err.style.display='block';return;}
+  btn.disabled=true; btn.textContent='Signing in…';
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:em,password:pw})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error;err.style.display='block';}
+    else window.location.href='/';
+  }catch{err.textContent='Network error';err.style.display='block';}
+  btn.disabled=false; btn.textContent='Sign In →';
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Enter') go(); });
+</script>
+{% endblock %}

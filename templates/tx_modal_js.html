@@ -1,0 +1,51 @@
+<script>
+let _txType='expense', _txEditId=null;
+
+function setTxType(t){
+  _txType=t;
+  document.getElementById('ttExp').className='tt-btn'+(t==='expense'?' a-exp':'');
+  document.getElementById('ttInc').className='tt-btn'+(t==='income'?' a-inc':'');
+  const cats=t==='expense'?EXP_CATS:INC_CATS;
+  const sel=document.getElementById('txCat');
+  sel.innerHTML='<option value="">Select…</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+}
+
+function openTxModal(data){
+  _txEditId=data?data.id:null;
+  document.getElementById('txModalTitle').textContent=data?'Edit Transaction':'Add Transaction';
+  document.getElementById('txSaveBtn').textContent=data?'Update':'Add Transaction';
+  document.getElementById('txDate').value=data?data.date:new Date().toISOString().split('T')[0];
+  document.getElementById('txDesc').value=data?(data.description||''):'';
+  document.getElementById('txAmt').value=data?data.amount:'';
+  setTxType(data?data.type:'expense');
+  if(data) document.getElementById('txCat').value=data.category;
+  document.getElementById('txOverlay').classList.add('open');
+  setTimeout(()=>document.getElementById('txAmt').focus(),100);
+}
+
+function closeTxModal(){
+  document.getElementById('txOverlay').classList.remove('open');
+  _txEditId=null;
+}
+
+async function saveTx(){
+  const amt=document.getElementById('txAmt').value;
+  const cat=document.getElementById('txCat').value;
+  const desc=document.getElementById('txDesc').value;
+  const date=document.getElementById('txDate').value;
+  if(!amt||!cat||!date){showToast('Please fill all required fields','err');return;}
+  const body={type:_txType,amount:parseFloat(amt),category:cat,description:desc,date};
+  const url=_txEditId?'/api/transactions/'+_txEditId:'/api/transactions';
+  const method=_txEditId?'PUT':'POST';
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!r.ok){const d=await r.json();showToast(d.error||'Save failed','err');return;}
+  showToast(_txEditId?'Transaction updated ✓':'Transaction added ✓');
+  closeTxModal();
+  if(typeof loadDash==='function') loadDash();
+  if(typeof load==='function') load();
+}
+
+document.getElementById('txOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeTxModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeTxModal();});
+setTxType('expense');
+</script>

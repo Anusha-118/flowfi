@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+<div class="ph">
+  <div class="ph-left"><h1 class="page-title">Reports</h1><p class="page-sub">Yearly trends & category analysis</p></div>
+  <div class="ctrl-row">
+    <select id="yr" class="fi" onchange="loadAll()"></select>
+  </div>
+</div>
+
+<!-- Year summary KPIs -->
+<div class="kpi-grid" style="margin-bottom:20px;">
+  <div class="kpi teal"><div class="kpi-label">Year Income</div><div class="kpi-icon">💵</div><div class="kpi-val" id="rInc">—</div></div>
+  <div class="kpi rose"><div class="kpi-label">Year Expenses</div><div class="kpi-icon">💸</div><div class="kpi-val" id="rExp">—</div></div>
+  <div class="kpi gold"><div class="kpi-label">Net Savings</div><div class="kpi-icon">🏦</div><div class="kpi-val" id="rSav">—</div></div>
+  <div class="kpi blue"><div class="kpi-label">Best Month</div><div class="kpi-icon">🏆</div><div class="kpi-val" id="rBest" style="font-size:16px;">—</div></div>
+</div>
+
+<!-- Monthly trend bar chart -->
+<div class="card" style="margin-bottom:14px;">
+  <div class="section-hd">
+    <span class="section-title">Monthly Income vs Expenses</span>
+    <span id="trendNote" style="font-size:12px;color:var(--text3);"></span>
+  </div>
+  <canvas id="trendC" height="130"></canvas>
+</div>
+
+<!-- Savings line + category breakdown -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+  <div class="card">
+    <div class="section-hd"><span class="section-title">Monthly Savings Trend</span></div>
+    <canvas id="savC" height="180"></canvas>
+  </div>
+  <div class="card">
+    <div class="section-hd">
+      <span class="section-title">Category Trend</span>
+      <select id="catSel" class="fi" style="padding:5px 10px;font-size:12px;" onchange="loadCatTrend()">
+        <option value="">All Expenses</option>
+        <option>Food</option><option>Transport</option><option>Shopping</option>
+        <option>Entertainment</option><option>Health</option><option>Education</option>
+        <option>Utilities</option><option>Rent</option><option>Other</option>
+      </select>
+    </div>
+    <canvas id="catC" height="180"></canvas>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let trendInst, savInst, catInst;
+
+// Populate year dropdown
+const yrSel=document.getElementById('yr');
+const nowYr=new Date().getFullYear();
+for(let y=nowYr;y>=nowYr-3;y--){
+  const o=document.createElement('option'); o.value=y; o.textContent=y;
+  yrSel.appendChild(o);
+}
+
+async function loadAll(){
+  const yr=document.getElementById('yr').value;
+  const r=await fetch('/api/reports/monthly?year='+yr);
+  const data=await r.json();
+
+  const totalInc=data.reduce((a,d)=>a+d.income,0);
+  const totalExp=data.reduce((a,d)=>a+d.expense,0);
+  document.getElementById('rInc').textContent=fmt(totalInc);
+  document.getElementById('rExp').textContent=fmt(totalExp);
+  document.getElementById('rSav').textContent=fmt(totalInc-totalExp);
+
+  const bestMonth=data.filter(d=>d.income>0).sort((a,b)=>(b.income-b.expense)-(a.income-a.expense))[0];
+  document.getElementById('rBest').textContent=bestMonth?bestMonth.label+' '+yr:'—';
+
+  const spentMonths=data.filter(d=>d.expense>0).length;
+  document.getElementById('trendNote').textContent=spentMonths+' active months';
+
+  renderTrend(data);
+  renderSavings(data);
+  loadCatTrend();
+}
+
+function renderTrend(data){
+  if(trendInst) trendInst.destroy();
+  trendInst=new Chart(document.getElementById('trendC'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[
+    {label:'Income',data:data.map(d=>d.income),backgroundColor:'rgba(0,212,170,.5)',borderRadius:5},
+    {label:'Expense',data:data.map(d=>d.expense),backgroundColor:'rgba(244,99,122,.5)',borderRadius:5}
+  ]},options:{responsive:true,plugins:{legend:{labels:{color:'#9ba3b8',font:{size:11}}}},scales:{x:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+}
+
+function renderSavings(data){
+  if(savInst) savInst.destroy();
+  const balances=data.map(d=>d.balance);
+  const colors=balances.map(v=>v>=0?'rgba(0,212,170,.8)':'rgba(244,99,122,.8)');
+  savInst=new Chart(document.getElementById('savC'),{type:'bar',data:{labels:data.map(d=>d.label),datasets:[{label:'Net Savings',data:balances,backgroundColor:colors,borderRadius:4}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+}
+
+async function loadCatTrend(){
+  const yr=document.getElementById('yr').value, cat=document.getElementById('catSel').value;
+  const r=await fetch(`/api/reports/category-trend?year=${yr}&category=${cat}`);
+  const data=await r.json();
+  if(catInst) catInst.destroy();
+  catInst=new Chart(document.getElementById('catC'),{type:'line',data:{labels:data.map(d=>d.label),datasets:[{label:cat||'All Expenses',data:data.map(d=>d.amount),borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,.08)',tension:.4,fill:true,pointBackgroundColor:'#f5c842',pointRadius:4}]},
+    options:{responsive:true,plugins:{legend:{labels:{color:'#9ba3b8',font:{size:11}}}},scales:{x:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+}
+
+loadAll();
+</script>
+{% endblock %}

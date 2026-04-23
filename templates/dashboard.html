@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="ph">
+  <div class="ph-left">
+    <h1 class="page-title">Dashboard</h1>
+    <p class="page-sub">Your financial snapshot</p>
+  </div>
+  <div class="ctrl-row">
+    <input type="month" id="mp" class="fi"/>
+    <button class="btn btn-gold" onclick="openTxModal()">＋ Add Transaction</button>
+  </div>
+</div>
+
+<!-- KPI row -->
+<div class="kpi-grid">
+  <div class="kpi gold"><div class="kpi-label">Net Balance</div><div class="kpi-icon">💰</div><div class="kpi-val" id="kBal">—</div><div class="kpi-sub">This month</div></div>
+  <div class="kpi teal"><div class="kpi-label">Total Income</div><div class="kpi-icon">📈</div><div class="kpi-val" id="kInc">—</div><div class="kpi-sub" id="kSr">—</div></div>
+  <div class="kpi rose"><div class="kpi-label">Total Expenses</div><div class="kpi-icon">📉</div><div class="kpi-val" id="kExp">—</div><div class="kpi-sub" id="kTopCat">—</div></div>
+  <div class="kpi blue"><div class="kpi-label">Savings Rate</div><div class="kpi-icon">🎯</div><div class="kpi-val" id="kSavRate">—</div><div class="kpi-sub">of income saved</div></div>
+</div>
+
+<!-- Charts -->
+<div class="charts-grid">
+  <div class="card">
+    <div class="card-title">Income vs Expenses</div>
+    <canvas id="barC" height="190"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title">Spending Breakdown</div>
+    <canvas id="pieC" height="190"></canvas>
+  </div>
+</div>
+
+<!-- Insights + Recent -->
+<div style="display:grid;grid-template-columns:1fr 1.4fr;gap:12px;">
+  <div class="card">
+    <div class="section-hd"><span class="section-title">Smart Insights</span></div>
+    <div id="insightsBox"><div class="empty"><div class="empty-icon">💡</div><div class="empty-t">No insights yet</div></div></div>
+  </div>
+  <div class="card">
+    <div class="section-hd">
+      <span class="section-title">Recent Transactions</span>
+      <a href="/transactions" style="font-size:12px;color:var(--gold);text-decoration:none;">View all →</a>
+    </div>
+    <div id="recentBox"></div>
+  </div>
+</div>
+
+{% include "tx_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let barInst, pieInst;
+document.getElementById('mp').value = curMonth();
+document.getElementById('mp').addEventListener('change', loadDash);
+
+async function loadDash() {
+  const m = document.getElementById('mp').value;
+  const [sr, tr, ir] = await Promise.all([
+    fetch('/api/summary?month='+m), fetch('/api/transactions?month='+m), fetch('/api/insights?month='+m)
+  ]);
+  const s = await sr.json(), txs = await tr.json(), ins = await ir.json();
+
+  document.getElementById('kBal').textContent = fmt(s.balance);
+  document.getElementById('kInc').textContent = fmt(s.total_income);
+  document.getElementById('kExp').textContent = fmt(s.total_expense);
+  document.getElementById('kSavRate').textContent = (s.savings_rate||0).toFixed(1)+'%';
+  document.getElementById('kSr').textContent = s.total_income > 0 ? 'From ' + (Object.keys(s.by_category).length) + ' categories' : 'No income recorded';
+  document.getElementById('kTopCat').textContent = s.top_expense_category ? 'Top: ' + s.top_expense_category : 'No expenses';
+
+  renderBar(s.by_category);
+  renderPie(s.by_category);
+  renderInsights(ins);
+  renderRecent(txs.slice(0,6));
+}
+
+function renderBar(bc) {
+  const labels=Object.keys(bc), inc=labels.map(k=>bc[k].income||0), exp=labels.map(k=>bc[k].expense||0);
+  if(barInst) barInst.destroy();
+  if(!labels.length){ document.getElementById('barC').parentElement.innerHTML+='<p style="text-align:center;color:var(--text3);font-size:13px;padding:40px 0">No data this month</p>'; return; }
+  barInst = new Chart(document.getElementById('barC'),{type:'bar',data:{labels,datasets:[
+    {label:'Income',data:inc,backgroundColor:'rgba(0,212,170,.6)',borderRadius:5},
+    {label:'Expense',data:exp,backgroundColor:'rgba(244,99,122,.6)',borderRadius:5}
+  ]},options:{responsive:true,plugins:{legend:{labels:{color:'#9ba3b8',font:{size:11}}}},scales:{x:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#5a6380'},grid:{color:'rgba(255,255,255,.03)'}}}}});
+}
+
+function renderPie(bc) {
+  const data=Object.entries(bc).filter(([,v])=>v.expense>0).map(([k,v])=>({k,v:v.expense}));
+  if(pieInst) pieInst.destroy();
+  if(!data.length) return;
+  const cols=['#f5c842','#00d4aa','#f4637a','#4f8ef7','#9b7ff4','#06d6a0','#ef476f','#ffd166'];
+  pieInst = new Chart(document.getElementById('pieC'),{type:'doughnut',data:{labels:data.map(d=>d.k),datasets:[{data:data.map(d=>d.v),backgroundColor:cols,borderWidth:2,borderColor:'#0d1221',hoverOffset:8}]},options:{responsive:true,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:'#9ba3b8',font:{size:11},padding:10}}}}});
+}
+
+function renderInsights(ins) {
+  const el=document.getElementById('insightsBox');
+  if(!ins.length){el.innerHTML='<div class="empty"><div class="empty-icon">💡</div><div class="empty-t">Add transactions to get insights</div></div>';return;}
+  el.innerHTML=ins.map(i=>`<div class="insight-item ${i.type}"><span class="ins-icon">${i.icon}</span><span>${i.text}</span></div>`).join('');
+}
+
+function renderRecent(txs) {
+  const el=document.getElementById('recentBox');
+  if(!txs.length){el.innerHTML='<div class="empty"><div class="empty-icon">📭</div><div class="empty-t">No transactions</div><div class="empty-s">Add your first one above</div></div>';return;}
+  el.innerHTML='<div class="t-list">'+txs.map(t=>`<div class="t-item"><div class="t-ico ${t.type}">${ICONS[t.category]||'💳'}</div><div class="t-body"><div class="t-name">${t.description||t.category}</div><div class="t-meta"><span class="chip chip-cat">${t.category}</span><span class="chip chip-date">${t.date}</span></div></div><div class="t-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div></div>`).join('')+'</div>';
+}
+
+loadDash();
+</script>
+{% include "tx_modal_js.html" %}
+{% endblock %}

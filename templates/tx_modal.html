@@ -1,0 +1,20 @@
+<div class="overlay" id="txOverlay">
+  <div class="modal">
+    <div class="modal-hd">
+      <h2 class="modal-title" id="txModalTitle">Add Transaction</h2>
+      <button class="x-btn" onclick="closeTxModal()">×</button>
+    </div>
+    <div class="type-tog">
+      <button class="tt-btn" id="ttExp" onclick="setTxType('expense')">💸 Expense</button>
+      <button class="tt-btn" id="ttInc" onclick="setTxType('income')">💵 Income</button>
+    </div>
+    <div class="fg"><label class="fl">Amount (₹)</label><input class="fin" type="number" id="txAmt" placeholder="0.00" min="0.01" step="0.01"/></div>
+    <div class="fg"><label class="fl">Category</label><select class="fin" id="txCat"><option value="">Select…</option></select></div>
+    <div class="fg"><label class="fl">Description (optional)</label><input class="fin" type="text" id="txDesc" placeholder="What was this for?"/></div>
+    <div class="fg"><label class="fl">Date</label><input class="fin" type="date" id="txDate"/></div>
+    <div class="mf">
+      <button class="btn-cancel" onclick="closeTxModal()">Cancel</button>
+      <button class="btn-save" id="txSaveBtn" onclick="saveTx()">Add Transaction</button>
+    </div>
+  </div>
+</div>

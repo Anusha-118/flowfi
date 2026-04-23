@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Transactions{% endblock %}
+{% block content %}
+<div class="ph">
+  <div class="ph-left"><h1 class="page-title">Transactions</h1><p class="page-sub">All your income & expenses</p></div>
+  <button class="btn btn-gold" onclick="openTxModal()">＋ Add Transaction</button>
+</div>
+
+<div class="card" style="margin-bottom:14px;">
+  <div class="ctrl-row">
+    <input type="month" id="mp" class="fi"/>
+    <select id="tf" class="fi" onchange="load()"><option value="">All Types</option><option value="income">Income</option><option value="expense">Expense</option></select>
+    <select id="cf" class="fi" onchange="load()">
+      <option value="">All Categories</option>
+      <option>Food</option><option>Transport</option><option>Shopping</option><option>Entertainment</option>
+      <option>Health</option><option>Education</option><option>Utilities</option><option>Rent</option>
+      <option>Salary</option><option>Freelance</option><option>Business</option><option>Investment</option>
+      <option>Gift</option><option>Other</option>
+    </select>
+    <input type="text" id="sf" class="fi" placeholder="🔍  Search…" oninput="load()" style="flex:1;min-width:120px;"/>
+  </div>
+</div>
+
+<!-- Summary strip -->
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+  <div class="card" style="padding:14px 18px;text-align:center;">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:4px;">Transactions</div>
+    <div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;" id="sTxCnt">—</div>
+  </div>
+  <div class="card" style="padding:14px 18px;text-align:center;border-bottom:2px solid var(--teal);">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:4px;">Total Income</div>
+    <div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--teal);" id="sTxInc">—</div>
+  </div>
+  <div class="card" style="padding:14px 18px;text-align:center;border-bottom:2px solid var(--rose);">
+    <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);margin-bottom:4px;">Total Expense</div>
+    <div style="font-size:20px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--rose);" id="sTxExp">—</div>
+  </div>
+</div>
+
+<div id="txBox"></div>
+{% include "tx_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('mp').value=curMonth();
+document.getElementById('mp').addEventListener('change',load);
+
+async function load(){
+  const m=document.getElementById('mp').value, t=document.getElementById('tf').value;
+  const c=document.getElementById('cf').value, s=document.getElementById('sf').value.trim();
+  const p=new URLSearchParams();
+  if(m)p.set('month',m); if(t)p.set('type',t); if(c)p.set('category',c); if(s)p.set('search',s);
+  const r=await fetch('/api/transactions?'+p), txs=await r.json();
+
+  const inc=txs.filter(t=>t.type==='income').reduce((a,t)=>a+t.amount,0);
+  const exp=txs.filter(t=>t.type==='expense').reduce((a,t)=>a+t.amount,0);
+  document.getElementById('sTxCnt').textContent=txs.length;
+  document.getElementById('sTxInc').textContent=fmt(inc);
+  document.getElementById('sTxExp').textContent=fmt(exp);
+
+  const el=document.getElementById('txBox');
+  if(!txs.length){el.innerHTML='<div class="empty card"><div class="empty-icon">📭</div><div class="empty-t">No transactions found</div><div class="empty-s">Try adjusting your filters</div></div>';return;}
+  el.innerHTML='<div class="t-list">'+txs.map(t=>`
+    <div class="t-item">
+      <div class="t-ico ${t.type}">${ICONS[t.category]||'💳'}</div>
+      <div class="t-body">
+        <div class="t-name">${t.description||t.category}</div>
+        <div class="t-meta"><span class="chip chip-cat">${t.category}</span><span class="chip chip-date">${t.date}</span><span class="chip ${t.type==='income'?'chip-inc':'chip-exp'}">${t.type}</span></div>
+      </div>
+      <div class="t-amt ${t.type}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+      <div class="t-acts">
+        <button class="ib" onclick='openTxModal(${JSON.stringify(t)})' title="Edit">✏️</button>
+        <button class="ib del" onclick="delTx(${t.id})" title="Delete">🗑️</button>
+      </div>
+    </div>`).join('')+'</div>';
+}
+
+async function delTx(id){
+  if(!confirm('Delete this transaction?')) return;
+  const r=await fetch('/api/transactions/'+id,{method:'DELETE'});
+  if(r.ok){showToast('Transaction deleted');load();}
+  else showToast('Delete failed','err');
+}
+
+load();
+</script>
+{% include "tx_modal_js.html" %}
+{% endblock %}
